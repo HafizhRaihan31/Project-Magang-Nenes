@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SWG Quality Monitoring | PT JFI</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <aside class="sidebar">
+        <div class="brand">
+            <div class="brand-icon">JFI</div>
+            <div>
+                <h2>SWG QUALITY</h2>
+                <p>MONITORING SYSTEM</p>
+            </div>
+        </div>
+
+        <div class="menu-label">MENU UTAMA</div>
+
+        <nav>
+            <button class="menu-item active" data-page="dashboard">
+                <span>▦</span> Dashboard
+            </button>
+            <button class="menu-item" data-page="input">
+                <span>＋</span> Input Data Rework
+            </button>
+            <button class="menu-item" data-page="history">
+                <span>▤</span> Riwayat Data
+            </button>
+        </nav>
+
+        <div class="sidebar-footer">
+            <strong>PT JEIL FAJAR INDONESIA</strong>
+            <p>SWG Quality Monitoring</p>
+        </div>
+    </aside>
+
+    <main class="main-content">
+
+        <header class="topbar">
+            <div>
+                <h1 id="page-title">Dashboard</h1>
+                <p id="page-subtitle">Ringkasan hasil monitoring rework produk SWG</p>
+            </div>
+            <div class="company-tag">PT JFI</div>
+        </header>
+
+        <!-- DASHBOARD -->
+        <section id="dashboard" class="page active">
+
+            <div class="section-heading">
+                <div>
+                    <h2>Dashboard Overview</h2>
+                    <p>Informasi keseluruhan data rework produk Spiral Wound Gasket</p>
+                </div>
+                <button class="primary-btn" onclick="showPage('input')">
+                    + Input Data
+                </button>
+            </div>
+
+            <div class="filter-row">
+                <div>
+                    <label>Filter Tanggal</label>
+                    <input type="date" id="filter-date">
+                </div>
+                <div>
+                    <label>Filter NPS</label>
+                    <select id="filter-size">
+                        <option value="">Semua Ukuran</option>
+                    </select>
+                </div>
+                <div>
+                    <label>Filter Defect</label>
+                    <select id="filter-defect">
+                        <option value="">Semua Defect</option>
+                    </select>
+                </div>
+                <button class="secondary-btn" onclick="resetFilters()">Reset</button>
+            </div>
+
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-icon red">↻</div>
+                    <p>Total Rework</p>
+                    <h2 id="total-rework">0</h2>
+                    <small>Total kuantitas yang dicatat</small>
+                </div>
+
+                <div class="stat-card">
+                    <div class="stat-icon dark">▤</div>
+                    <p>Jumlah Data</p>
+                    <h2 id="total-records">0</h2>
+                    <small>Jumlah catatan rework</small>
+                </div>
+
+                <div class="stat-card">
+                    <div class="stat-icon orange">!</div>
+                    <p>Defect Terbanyak</p>
+                    <h2 class="stat-text" id="top-defect">-</h2>
+                    <small>Jenis defect paling sering dicatat</small>
+                </div>
+
+                <div class="stat-card">
+                    <div class="stat-icon blue">⌖</div>
+                    <p>Ukuran NPS Terbanyak</p>
+                    <h2 class="stat-text" id="top-size">-</h2>
+                    <small>Ukuran dengan rework tertinggi</small>
+                </div>
+            </div>
+
+            <div class="charts-grid">
+                <div class="panel">
+                    <div class="panel-heading">
+                        <div>
+                            <h3>Rework Berdasarkan Defect</h3>
+                            <p>Perbandingan jumlah rework setiap jenis defect</p>
+                        </div>
+                    </div>
+                    <div id="defect-chart" class="bar-chart">
+                        <p class="empty-message">Belum ada data rework.</p>
+                    </div>
+                </div>
+
+                <div class="panel">
+                    <div class="panel-heading">
+                        <div>
+                            <h3>Rework Berdasarkan NPS</h3>
+                            <p>Perbandingan jumlah rework setiap ukuran</p>
+                        </div>
+                    </div>
+                    <div id="size-chart" class="bar-chart">
+                        <p class="empty-message">Belum ada data rework.</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="panel">
+                <div class="panel-heading">
+                    <div>
+                        <h3>Ringkasan Data Rework</h3>
+                        <p>Data rework terbaru yang telah dimasukkan</p>
+                    </div>
+                    <button class="text-btn" onclick="showPage('history')">
+                        Lihat Semua →
+                    </button>
+                </div>
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Tanggal</th>
+                                <th>NPS</th>
+                                <th>ASME Class</th>
+                                <th>Jenis Defect</th>
+                                <th>Qty</th>
+                            </tr>
+                        </thead>
+                        <tbody id="dashboard-table"></tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- INPUT DATA -->
+        <section id="input" class="page">
+
+            <div class="section-heading">
+                <div>
+                    <h2>Input Data Rework</h2>
+                    <p>Masukkan hasil pengamatan rework produk Spiral Wound Gasket</p>
+                </div>
+            </div>
+
+            <div class="panel form-panel">
+                <div class="form-heading">
+                    <h3>Formulir Data Rework SWG</h3>
+                    <p>Pastikan data yang dimasukkan sesuai hasil pemeriksaan</p>
+                </div>
+
+                <form id="rework-form">
+
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="date">Tanggal Pengamatan <span>*</span></label>
+                            <input type="date" id="date" required>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="size">Flange Size (NPS) <span>*</span></label>
+                            <select id="size" required>
+                                <option value="">Pilih ukuran NPS</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="class">ASME Class <span>*</span></label>
+                            <select id="class" required>
+                                <option value="">Pilih ASME Class</option>
+                                <option value="150">Class 150</option>
+                                <option value="300">Class 300</option>
+                                <option value="600">Class 600</option>
+                                <option value="900">Class 900</option>
+                                <option value="1500">Class 1500</option>
+                                <option value="2500">Class 2500</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="defect">Jenis Defect <span>*</span></label>
+                            <select id="defect" required>
+                                <option value="">Pilih jenis defect</option>
+                                <option value="Tidak Center">Tidak Center (Misalignment)</option>
+                                <option value="Coating">Coating Irregularity</option>
+                                <option value="Basic Goyang/Kendor">Basic Goyang/Kendor</option>
+                                <option value="Basic Patah">Basic Patah</option>
+                                <option value="Lainnya">Lainnya</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="quantity">Jumlah Rework (Qty) <span>*</span></label>
+                            <input type="number" id="quantity" min="1" placeholder="Masukkan jumlah" required>
+                        </div>
+
+                        <div class="form-group full-width">
+                            <label for="notes">Keterangan</label>
+                            <textarea id="notes" rows="4" placeholder="Tambahkan keterangan jika diperlukan..."></textarea>
+                        </div>
+                    </div>
+
+                    <div class="form-actions">
+                        <button type="reset" class="secondary-btn">Reset Form</button>
+                        <button type="submit" class="primary-btn">Simpan Data Rework</button>
+                    </div>
+
+                </form>
+            </div>
+        </section>
+
+        <!-- RIWAYAT DATA -->
+        <section id="history" class="page">
+
+            <div class="section-heading">
+                <div>
+                    <h2>Riwayat Data Rework</h2>
+                    <p>Daftar seluruh data rework yang telah dicatat</p>
+                </div>
+                <button class="primary-btn" onclick="exportCSV()">
+                    ↓ Export CSV
+                </button>
+            </div>
+
+            <div class="panel">
+                <div class="history-toolbar">
+                    <input type="search" id="search-history" placeholder="Cari ukuran, defect, atau keterangan...">
+                    <span id="history-count">0 data</span>
+                </div>
+
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>No.</th>
+                                <th>Tanggal</th>
+                                <th>NPS</th>
+                                <th>ASME Class</th>
+                                <th>Jenis Defect</th>
+                                <th>Qty</th>
+                                <th>Keterangan</th>
+                                <th>Aksi</th>
+                            </tr>
+                        </thead>
+                        <tbody id="history-table"></tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <footer class="footer">
+            SWG Quality Monitoring System © 2026 | PT Jeil Fajar Indonesia
+        </footer>
+
+    </main>
+
+    <script src="script.js"></script>
+</body>
+</html>
