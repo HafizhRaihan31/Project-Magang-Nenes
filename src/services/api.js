@@ -1,38 +1,33 @@
-import initialData from '../data/initialData.json';
-
-const STORAGE_KEY = 'swg_rework_records';
 const API_URL_KEY = 'swg_gas_api_url';
+const ENV_API_URL = (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_GAS_API_URL) ? import.meta.env.VITE_GAS_API_URL.trim() : '';
 
+// Ambil URL Google Apps Script permanen dari Environment Variable (.env)
 export function getGasApiUrl() {
+  if (ENV_API_URL) {
+    return ENV_API_URL;
+  }
   return localStorage.getItem(API_URL_KEY) || '';
 }
 
+// Simpan custom URL ke LocalStorage
 export function setGasApiUrl(url) {
-  localStorage.setItem(API_URL_KEY, url.trim());
-}
-
-export function getLocalRecords() {
-  const saved = localStorage.getItem(STORAGE_KEY);
-  if (!saved) {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(initialData));
-    return initialData;
-  }
-  try {
-    return JSON.parse(saved);
-  } catch (e) {
-    return initialData;
+  if (!url || !url.trim()) {
+    localStorage.removeItem(API_URL_KEY);
+  } else {
+    localStorage.setItem(API_URL_KEY, url.trim());
   }
 }
 
-export function saveLocalRecords(records) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
+// Hapus custom URL dari LocalStorage
+export function clearGasApiUrl() {
+  localStorage.removeItem(API_URL_KEY);
 }
 
-// Fetch records from Google Apps Script or fallback to LocalStorage
+// Fetch records murni dari Google Sheets (Cloud Only)
 export async function fetchRecords() {
   const apiUrl = getGasApiUrl();
   if (!apiUrl) {
-    return { data: getLocalRecords(), source: 'local' };
+    return { data: [], source: 'unconfigured' };
   }
 
   try {
@@ -40,93 +35,91 @@ export async function fetchRecords() {
       method: 'GET',
       headers: { 'Accept': 'application/json' }
     });
-    if (!res.ok) throw new Error('Network error: ' + res.status);
+
+    if (!res.ok) {
+      throw new Error(`HTTP Error: ${res.status}`);
+    }
+
     const result = await res.json();
     if (result.status === 'success' && Array.isArray(result.data)) {
-      saveLocalRecords(result.data); // sync local cache
       return { data: result.data, source: 'cloud' };
     }
-    throw new Error(result.message || 'Gagal memuat data dari cloud');
+
+    throw new Error(result.message || 'Gagal memuat data dari Google Sheets.');
   } catch (err) {
-    console.warn('Fallback to local storage due to API error:', err);
-    return { data: getLocalRecords(), source: 'local_fallback', error: err.message };
+    console.error('Gagal mengambil data dari Google Apps Script:', err);
+    throw err;
   }
 }
 
-// Create new record
+// Tambah catatan baru ke Google Sheets (Create)
 export async function createRecord(record) {
   const apiUrl = getGasApiUrl();
-  const localList = getLocalRecords();
+  if (!apiUrl) {
+    throw new Error('URL Google Apps Script belum disetel.');
+  }
+
   const newRecord = {
     ...record,
     id: record.id || `REC-${Date.now()}`,
     createdAt: new Date().toISOString()
   };
 
-  // Always update local storage first
-  const updated = [newRecord, ...localList];
-  saveLocalRecords(updated);
-
-  if (apiUrl) {
-    try {
-      await fetch(apiUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify({ action: 'create', data: newRecord })
-      });
-    } catch (err) {
-      console.warn('Failed to sync create to cloud:', err);
-    }
+  try {
+    await fetch(apiUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ action: 'create', data: newRecord })
+    });
+  } catch (err) {
+    // Penanganan warning CORS redirect pada Google Apps Script
+    console.warn('Cloud sync notice (create):', err);
   }
 
   return newRecord;
 }
 
-// Update existing record
+// Perbarui catatan di Google Sheets (Update)
 export async function updateRecord(record) {
   const apiUrl = getGasApiUrl();
-  const localList = getLocalRecords();
-  const updated = localList.map(item => item.id === record.id ? { ...item, ...record } : item);
-  saveLocalRecords(updated);
+  if (!apiUrl) {
+    throw new Error('URL Google Apps Script belum disetel.');
+  }
 
-  if (apiUrl) {
-    try {
-      await fetch(apiUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify({ action: 'update', data: record })
-      });
-    } catch (err) {
-      console.warn('Failed to sync update to cloud:', err);
-    }
+  try {
+    await fetch(apiUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ action: 'update', data: record })
+    });
+  } catch (err) {
+    console.warn('Cloud sync notice (update):', err);
   }
 
   return record;
 }
 
-// Delete record
+// Hapus catatan dari Google Sheets (Delete)
 export async function deleteRecord(id) {
   const apiUrl = getGasApiUrl();
-  const localList = getLocalRecords();
-  const updated = localList.filter(item => item.id !== id);
-  saveLocalRecords(updated);
+  if (!apiUrl) {
+    throw new Error('URL Google Apps Script belum disetel.');
+  }
 
-  if (apiUrl) {
-    try {
-      await fetch(apiUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify({ action: 'delete', id: id })
-      });
-    } catch (err) {
-      console.warn('Failed to sync delete to cloud:', err);
-    }
+  try {
+    await fetch(apiUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ action: 'delete', id: String(id) })
+    });
+  } catch (err) {
+    console.warn('Cloud sync notice (delete):', err);
   }
 
   return true;
 }
 
-// Export records to CSV
+// Ekspor data ke CSV
 export function exportToCSV(records) {
   if (!records || !records.length) {
     alert('Tidak ada data untuk diekspor.');
@@ -136,7 +129,6 @@ export function exportToCSV(records) {
   const headers = [
     'No',
     'Tanggal',
-    'Product / Ukuran',
     'NPS',
     'Class',
     'Qty Order',
@@ -150,7 +142,6 @@ export function exportToCSV(records) {
   const rows = records.map((r, i) => [
     i + 1,
     r.date || '',
-    r.product || '',
     r.nps || '',
     r.asmeClass || '',
     r.qtyOrder || 0,

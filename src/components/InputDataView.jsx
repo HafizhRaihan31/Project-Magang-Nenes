@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
-import { PlusCircle, Save, RotateCcw, CheckCircle, ArrowRight } from 'lucide-react';
+import React, { useState, useMemo } from 'react';
+import { PlusCircle, Save, RotateCcw, CheckCircle, ArrowRight, Sparkles } from 'lucide-react';
 import { ASME_CLASSES, NPS_SIZES, DEFECT_TYPES, PROCESS_LIST, ACTION_LIST } from '../data/constants';
 
-export default function InputDataView({ onSave, onNavigateToTable }) {
+export default function InputDataView({ onSave, onNavigateToTable, existingRecords = [] }) {
   const initialForm = {
     date: new Date().toISOString().slice(0, 10),
     nps: '3"',
@@ -16,8 +16,72 @@ export default function InputDataView({ onSave, onNavigateToTable }) {
   };
 
   const [formData, setFormData] = useState(initialForm);
+  const [customInputs, setCustomInputs] = useState({
+    nps: '',
+    asmeClass: '',
+    defect: '',
+    process: '',
+    action: ''
+  });
+
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [lastSaved, setLastSaved] = useState(null);
+
+  // Opsi Dinamis: Menggabungkan daftar standar + kategori kustom yang sudah ada di database + "Lainnya"
+  const availableDefects = useMemo(() => {
+    const list = [...DEFECT_TYPES.filter(d => d !== 'Lainnya')];
+    existingRecords.forEach(r => {
+      if (r.defect && r.defect !== '-' && !list.includes(r.defect) && r.defect !== 'Lainnya') {
+        list.push(r.defect);
+      }
+    });
+    return [...list, 'Lainnya'];
+  }, [existingRecords]);
+
+  const availableProcesses = useMemo(() => {
+    const list = [...PROCESS_LIST.filter(p => p !== 'Lainnya')];
+    existingRecords.forEach(r => {
+      if (r.process && r.process !== '-' && !list.includes(r.process) && r.process !== 'Lainnya') {
+        list.push(r.process);
+      }
+    });
+    return [...list, 'Lainnya'];
+  }, [existingRecords]);
+
+  const availableActions = useMemo(() => {
+    const list = [...ACTION_LIST.filter(a => a !== 'Lainnya')];
+    existingRecords.forEach(r => {
+      if (r.action && r.action !== '-' && !list.includes(r.action) && r.action !== 'Lainnya') {
+        list.push(r.action);
+      }
+    });
+    return [...list, 'Lainnya'];
+  }, [existingRecords]);
+
+  const availableClasses = useMemo(() => {
+    const list = [...ASME_CLASSES.filter(c => c.value !== 'Other')];
+    const existingVals = new Set(list.map(c => String(c.value)));
+    existingRecords.forEach(r => {
+      if (r.asmeClass && !existingVals.has(String(r.asmeClass)) && r.asmeClass !== 'Other') {
+        existingVals.add(String(r.asmeClass));
+        list.push({
+          value: String(r.asmeClass),
+          label: `Class ${r.asmeClass}`
+        });
+      }
+    });
+    return [...list, { value: 'Other', label: 'Class Lainnya (Kustom)' }];
+  }, [existingRecords]);
+
+  const availableNps = useMemo(() => {
+    const list = [...NPS_SIZES.filter(s => s !== 'Lainnya')];
+    existingRecords.forEach(r => {
+      if (r.nps && r.nps !== '-' && !list.includes(r.nps) && r.nps !== 'Lainnya') {
+        list.push(r.nps);
+      }
+    });
+    return [...list, 'Lainnya'];
+  }, [existingRecords]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -26,15 +90,77 @@ export default function InputDataView({ onSave, onNavigateToTable }) {
       return;
     }
 
+    // Validasi input jika user memilih "Lainnya"
+    let finalDefect = formData.defect;
+    if (formData.defect === 'Lainnya') {
+      if (!customInputs.defect.trim()) {
+        alert('Mohon ketikkan nama Jenis Defect baru pada kolom yang tersedia.');
+        return;
+      }
+      finalDefect = customInputs.defect.trim();
+    }
+
+    let finalProcess = formData.process;
+    if (formData.process === 'Lainnya') {
+      if (!customInputs.process.trim()) {
+        alert('Mohon ketikkan nama Proses Terkait baru pada kolom yang tersedia.');
+        return;
+      }
+      finalProcess = customInputs.process.trim();
+    }
+
+    let finalAction = formData.action;
+    if (formData.action === 'Lainnya') {
+      if (!customInputs.action.trim()) {
+        alert('Mohon ketikkan nama Tindakan Rework baru pada kolom yang tersedia.');
+        return;
+      }
+      finalAction = customInputs.action.trim();
+    }
+
+    let finalClass = formData.asmeClass;
+    if (formData.asmeClass === 'Other') {
+      if (!customInputs.asmeClass.trim()) {
+        alert('Mohon ketikkan nama ASME Class baru pada kolom yang tersedia.');
+        return;
+      }
+      finalClass = customInputs.asmeClass.trim();
+    }
+
+    let finalNps = formData.nps;
+    if (formData.nps === 'Lainnya') {
+      if (!customInputs.nps.trim()) {
+        alert('Mohon ketikkan nama Ukuran NPS baru pada kolom yang tersedia.');
+        return;
+      }
+      finalNps = customInputs.nps.trim();
+    }
+
+    const payload = {
+      ...formData,
+      defect: finalDefect,
+      process: finalProcess,
+      action: finalAction,
+      asmeClass: finalClass,
+      nps: finalNps
+    };
+
     setIsSubmitting(true);
     try {
-      await onSave(formData);
-      setLastSaved({ ...formData });
-      // Reset form ke default tapi simpan tanggal
+      await onSave(payload);
+      setLastSaved({ ...payload });
+      // Reset form ke default tapi simpan tanggal & class
       setFormData({
         ...initialForm,
         date: formData.date,
-        asmeClass: formData.asmeClass
+        asmeClass: finalClass
+      });
+      setCustomInputs({
+        nps: '',
+        asmeClass: '',
+        defect: '',
+        process: '',
+        action: ''
       });
     } catch (err) {
       console.error(err);
@@ -45,6 +171,13 @@ export default function InputDataView({ onSave, onNavigateToTable }) {
 
   const handleReset = () => {
     setFormData(initialForm);
+    setCustomInputs({
+      nps: '',
+      asmeClass: '',
+      defect: '',
+      process: '',
+      action: ''
+    });
     setLastSaved(null);
   };
 
@@ -52,7 +185,7 @@ export default function InputDataView({ onSave, onNavigateToTable }) {
     <div className="max-w-3xl mx-auto space-y-6">
       
       {/* Title & Introduction */}
-      <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
+      {/* <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
         <div className="flex items-center space-x-3 mb-1">
           <div className="p-2 rounded-xl bg-slate-100 text-slate-800">
             <PlusCircle className="w-5 h-5" />
@@ -66,7 +199,7 @@ export default function InputDataView({ onSave, onNavigateToTable }) {
             </p>
           </div>
         </div>
-      </div>
+      </div> */}
 
       {/* Success Notification if just saved */}
       {lastSaved && (
@@ -117,10 +250,28 @@ export default function InputDataView({ onSave, onNavigateToTable }) {
                 onChange={(e) => setFormData({ ...formData, asmeClass: e.target.value })}
                 className="w-full px-3.5 py-2.5 text-xs sm:text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-slate-900 focus:bg-white cursor-pointer transition"
               >
-                {ASME_CLASSES.map(c => (
+                {availableClasses.map(c => (
                   <option key={c.value} value={c.value}>{c.label}</option>
                 ))}
               </select>
+
+              {/* Input Kustom jika Class = Other */}
+              {formData.asmeClass === 'Other' && (
+                <div className="mt-2 animate-in fade-in duration-150">
+                  <input
+                    type="text"
+                    required
+                    value={customInputs.asmeClass}
+                    onChange={(e) => setCustomInputs({ ...customInputs, asmeClass: e.target.value })}
+                    placeholder="Ketikkan Class baru (contoh: 800, PN25, API 10K)..."
+                    className="w-full px-3 py-2 text-xs sm:text-sm bg-amber-50/60 border border-amber-300 rounded-xl focus:outline-none focus:ring-1 focus:ring-amber-500 focus:bg-white transition shadow-xs"
+                  />
+                  <p className="text-[10px] text-amber-700 mt-1 font-medium flex items-center space-x-1">
+                    
+                    
+                  </p>
+                </div>
+              )}
             </div>
 
             {/* NPS Size */}
@@ -133,10 +284,28 @@ export default function InputDataView({ onSave, onNavigateToTable }) {
                 onChange={(e) => setFormData({ ...formData, nps: e.target.value })}
                 className="w-full px-3.5 py-2.5 text-xs sm:text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-slate-900 focus:bg-white cursor-pointer transition"
               >
-                {NPS_SIZES.map(s => (
+                {availableNps.map(s => (
                   <option key={s} value={s}>{s}</option>
                 ))}
               </select>
+
+              {/* Input Kustom jika NPS = Lainnya */}
+              {formData.nps === 'Lainnya' && (
+                <div className="mt-2 animate-in fade-in duration-150">
+                  <input
+                    type="text"
+                    required
+                    value={customInputs.nps}
+                    onChange={(e) => setCustomInputs({ ...customInputs, nps: e.target.value })}
+                    placeholder='Ketikkan ukuran NPS baru (contoh: 2-1/2" Special, 64")...'
+                    className="w-full px-3 py-2 text-xs sm:text-sm bg-amber-50/60 border border-amber-300 rounded-xl focus:outline-none focus:ring-1 focus:ring-amber-500 focus:bg-white transition shadow-xs"
+                  />
+                  <p className="text-[10px] text-amber-700 mt-1 font-medium flex items-center space-x-1">
+                    
+                   
+                  </p>
+                </div>
+              )}
             </div>
 
             {/* Qty Rework */}
@@ -184,10 +353,28 @@ export default function InputDataView({ onSave, onNavigateToTable }) {
                 onChange={(e) => setFormData({ ...formData, defect: e.target.value })}
                 className="w-full px-3.5 py-2.5 text-xs sm:text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-slate-900 focus:bg-white cursor-pointer transition"
               >
-                {DEFECT_TYPES.map(d => (
+                {availableDefects.map(d => (
                   <option key={d} value={d}>{d}</option>
                 ))}
               </select>
+
+              {/* Input Kustom jika Defect = Lainnya */}
+              {formData.defect === 'Lainnya' && (
+                <div className="mt-2 animate-in fade-in duration-150">
+                  <input
+                    type="text"
+                    required
+                    value={customInputs.defect}
+                    onChange={(e) => setCustomInputs({ ...customInputs, defect: e.target.value })}
+                    placeholder="Ketikkan nama jenis defect baru..."
+                    className="w-full px-3 py-2 text-xs sm:text-sm bg-amber-50/60 border border-amber-300 rounded-xl focus:outline-none focus:ring-1 focus:ring-amber-500 focus:bg-white transition shadow-xs"
+                  />
+                  <p className="text-[10px] text-amber-700 mt-1 font-medium flex items-center space-x-1">
+                    
+                    
+                  </p>
+                </div>
+              )}
             </div>
 
           </div>
@@ -204,10 +391,28 @@ export default function InputDataView({ onSave, onNavigateToTable }) {
                 onChange={(e) => setFormData({ ...formData, process: e.target.value })}
                 className="w-full px-3.5 py-2.5 text-xs sm:text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-slate-900 focus:bg-white cursor-pointer transition"
               >
-                {PROCESS_LIST.map(p => (
+                {availableProcesses.map(p => (
                   <option key={p} value={p}>{p}</option>
                 ))}
               </select>
+
+              {/* Input Kustom jika Proses = Lainnya */}
+              {formData.process === 'Lainnya' && (
+                <div className="mt-2 animate-in fade-in duration-150">
+                  <input
+                    type="text"
+                    required
+                    value={customInputs.process}
+                    onChange={(e) => setCustomInputs({ ...customInputs, process: e.target.value })}
+                    placeholder="Ketikkan nama proses terkait baru..."
+                    className="w-full px-3 py-2 text-xs sm:text-sm bg-amber-50/60 border border-amber-300 rounded-xl focus:outline-none focus:ring-1 focus:ring-amber-500 focus:bg-white transition shadow-xs"
+                  />
+                  <p className="text-[10px] text-amber-700 mt-1 font-medium flex items-center space-x-1">
+                    
+                    
+                  </p>
+                </div>
+              )}
             </div>
 
             {/* Tindakan Rework */}
@@ -220,10 +425,28 @@ export default function InputDataView({ onSave, onNavigateToTable }) {
                 onChange={(e) => setFormData({ ...formData, action: e.target.value })}
                 className="w-full px-3.5 py-2.5 text-xs sm:text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-slate-900 focus:bg-white cursor-pointer transition"
               >
-                {ACTION_LIST.map(a => (
+                {availableActions.map(a => (
                   <option key={a} value={a}>{a}</option>
                 ))}
               </select>
+
+              {/* Input Kustom jika Tindakan = Lainnya */}
+              {formData.action === 'Lainnya' && (
+                <div className="mt-2 animate-in fade-in duration-150">
+                  <input
+                    type="text"
+                    required
+                    value={customInputs.action}
+                    onChange={(e) => setCustomInputs({ ...customInputs, action: e.target.value })}
+                    placeholder="Ketikkan nama tindakan rework baru..."
+                    className="w-full px-3 py-2 text-xs sm:text-sm bg-amber-50/60 border border-amber-300 rounded-xl focus:outline-none focus:ring-1 focus:ring-amber-500 focus:bg-white transition shadow-xs"
+                  />
+                  <p className="text-[10px] text-amber-700 mt-1 font-medium flex items-center space-x-1">
+                    
+                    
+                  </p>
+                </div>
+              )}
             </div>
 
           </div>

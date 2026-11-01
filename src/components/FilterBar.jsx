@@ -13,9 +13,14 @@ export default function FilterBar({
   setSelectedDate,
   onResetFilters,
   onExportCSV,
-  totalResults
+  totalResults,
+  classOptions,
+  defectOptions
 }) {
   const hasActiveFilters = Boolean(searchQuery || selectedClass || selectedDefect || selectedDate);
+
+  const availableClassOptions = classOptions || ASME_CLASSES;
+  const availableDefectOptions = defectOptions || DEFECT_TYPES;
 
   return (
     <div className="bg-white p-3.5 sm:p-4 rounded-xl border border-slate-200 shadow-xs mb-4">
@@ -51,7 +56,7 @@ export default function FilterBar({
             className="px-2.5 py-2 text-xs sm:text-sm bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-slate-900 text-slate-700 cursor-pointer"
           >
             <option value="">Semua Class</option>
-            {ASME_CLASSES.map(c => (
+            {availableClassOptions.map(c => (
               <option key={c.value} value={c.value}>{c.label}</option>
             ))}
           </select>
@@ -60,10 +65,10 @@ export default function FilterBar({
           <select
             value={selectedDefect}
             onChange={(e) => setSelectedDefect(e.target.value)}
-            className="px-2.5 py-2 text-xs sm:text-sm bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-slate-900 text-slate-700 cursor-pointer max-w-[180px] truncate"
+            className="px-2.5 py-2 text-xs sm:text-sm bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-slate-900 text-slate-700 cursor-pointer max-w-[200px] truncate"
           >
             <option value="">Semua Defect</option>
-            {DEFECT_TYPES.map(d => (
+            {availableDefectOptions.map(d => (
               <option key={d} value={d}>{d}</option>
             ))}
           </select>

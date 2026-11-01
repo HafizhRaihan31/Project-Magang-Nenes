@@ -7,20 +7,20 @@ import FilterBar from './components/FilterBar';
 import ReworkTable from './components/ReworkTable';
 import AnalyticsView from './components/AnalyticsView';
 import ReworkModal from './components/ReworkModal';
-import SettingsModal from './components/SettingsModal';
 import { 
   fetchRecords, 
   createRecord, 
   updateRecord, 
   deleteRecord, 
-  exportToCSV, 
-  saveLocalRecords 
+  exportToCSV,
+  getGasApiUrl
 } from './services/api';
-import initialData from './data/initialData.json';
+import { DEFECT_TYPES, ASME_CLASSES } from './data/constants';
+import { AlertCircle } from 'lucide-react';
 
 export default function App() {
   const [records, setRecords] = useState([]);
-  const [syncStatus, setSyncStatus] = useState('local'); // 'cloud' | 'local'
+  const [syncStatus, setSyncStatus] = useState(() => getGasApiUrl() ? 'cloud' : 'unconfigured'); // 'cloud' | 'unconfigured' | 'error'
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
@@ -55,9 +55,6 @@ export default function App() {
   const [editData, setEditData] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Settings Modal state
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-
   // Toast feedback
   const [toast, setToast] = useState(null);
 
@@ -66,16 +63,22 @@ export default function App() {
     setTimeout(() => setToast(null), 3000);
   };
 
-  // Load data on start
+  // Load data murni langsung dari Google Sheets
   const loadData = async (showLoadingSpinner = true) => {
     if (showLoadingSpinner) setIsRefreshing(true);
     try {
       const res = await fetchRecords();
-      setRecords(res.data);
-      setSyncStatus(res.source === 'cloud' ? 'cloud' : 'local');
+      if (res.source === 'unconfigured') {
+        setSyncStatus('unconfigured');
+        setRecords([]);
+      } else {
+        setRecords(res.data);
+        setSyncStatus('cloud');
+      }
     } catch (err) {
       console.error(err);
-      showToast('Gagal menghubungkan ke server, memuat data lokal', 'error');
+      setSyncStatus('error');
+      showToast('Gagal memuat data dari Google Sheets: ' + (err.message || ''), 'error');
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);
@@ -101,6 +104,33 @@ export default function App() {
       };
     });
   };
+
+  // Opsi Defect Dinamis (Standar + Kategori baru dari database)
+  const dynamicDefects = useMemo(() => {
+    const set = new Set(DEFECT_TYPES.filter(d => d !== 'Lainnya'));
+    records.forEach(r => {
+      if (r.defect && r.defect !== '-' && r.defect !== 'Lainnya') {
+        set.add(r.defect);
+      }
+    });
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [records]);
+
+  // Opsi Class Dinamis (Standar + Class baru dari database)
+  const dynamicClasses = useMemo(() => {
+    const list = [...ASME_CLASSES.filter(c => c.value !== 'Other')];
+    const existingVals = new Set(list.map(c => String(c.value)));
+    records.forEach(r => {
+      if (r.asmeClass && !existingVals.has(String(r.asmeClass)) && r.asmeClass !== 'Other') {
+        existingVals.add(String(r.asmeClass));
+        list.push({
+          value: String(r.asmeClass),
+          label: `Class ${r.asmeClass}`
+        });
+      }
+    });
+    return list;
+  }, [records]);
 
   // Filter & Sort computation (untuk Tab 'table')
   const processedRecords = useMemo(() => {
@@ -156,11 +186,15 @@ export default function App() {
     return filtered;
   }, [records, searchQuery, selectedClass, selectedDefect, selectedDate, sortConfig]);
 
-  // CRUD Operations
+  // CRUD Operations langsung ke Google Sheets
   const handleSaveFromInput = async (formData) => {
-    const created = await createRecord(formData);
-    setRecords(prev => [created, ...prev]);
-    showToast('Data rework baru berhasil disimpan ke database!');
+    try {
+      const created = await createRecord(formData);
+      setRecords(prev => [created, ...prev]);
+      showToast('Data rework baru berhasil disimpan ke Google Sheets!');
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
   };
 
   const handleOpenEditModal = (record) => {
@@ -174,26 +208,26 @@ export default function App() {
       await updateRecord(formData);
       setRecords(prev => prev.map(item => item.id === formData.id ? { ...item, ...formData } : item));
       setIsEditModalOpen(false);
-      showToast('Perubahan data rework berhasil diperbarui!');
+      showToast('Perubahan data di Google Sheets berhasil diperbarui!');
     } catch (err) {
       console.error(err);
-      showToast('Gagal memperbarui data.', 'error');
+      showToast('Gagal memperbarui data: ' + err.message, 'error');
     } finally {
       setIsSubmitting(false);
     }
   };
 
   const handleDeleteRecord = async (id) => {
-    const confirmed = window.confirm('Apakah Anda yakin ingin menghapus catatan rework ini?');
+    const confirmed = window.confirm('Apakah Anda yakin ingin menghapus catatan rework ini dari Google Sheets?');
     if (!confirmed) return;
 
     try {
       await deleteRecord(id);
       setRecords(prev => prev.filter(item => item.id !== id));
-      showToast('Catatan rework telah dihapus.');
+      showToast('Catatan rework telah dihapus dari Google Sheets.');
     } catch (err) {
       console.error(err);
-      showToast('Gagal menghapus data.', 'error');
+      showToast('Gagal menghapus data: ' + err.message, 'error');
     }
   };
 
@@ -202,16 +236,6 @@ export default function App() {
     setSelectedClass('');
     setSelectedDefect('');
     setSelectedDate('');
-  };
-
-  const handleResetLocalData = () => {
-    const confirmed = window.confirm('Kembalikan seluruh data ke 208 data awal dari file Excel?');
-    if (confirmed) {
-      saveLocalRecords(initialData);
-      setRecords(initialData);
-      setIsSettingsOpen(false);
-      showToast('Data berhasil direset ke versi awal Excel.');
-    }
   };
 
   return (
@@ -228,7 +252,6 @@ export default function App() {
         syncStatus={syncStatus}
         onRefresh={() => loadData(true)}
         isRefreshing={isRefreshing}
-        onOpenSettings={() => setIsSettingsOpen(true)}
       />
 
       {/* 2. MAIN CONTENT AREA (MENYESUAIKAN LEBAR OTOMATIS) */}
@@ -248,6 +271,21 @@ export default function App() {
         {/* PAGE CONTENT CONTAINER (SCROLLABLE) */}
         <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
           <div className="max-w-7xl mx-auto">
+
+            {/* NOTIFIKASI SETUP GOOGLE SHEETS JIKA BELUM TERHUBUNG */}
+            {syncStatus === 'unconfigured' && (
+              <div className="mb-6 p-4 rounded-2xl bg-amber-50/80 border border-amber-200/80 text-amber-900 flex items-center space-x-3 shadow-xs">
+                <div className="p-2 rounded-xl bg-amber-100 text-amber-700 shrink-0">
+                  <AlertCircle className="w-5 h-5" />
+                </div>
+                <div className="text-xs">
+                  <p className="font-bold text-amber-950">URL Google Apps Script Belum Terdeteksi</p>
+                  <p className="text-amber-800 mt-0.5">
+                    Pastikan variabel <code className="font-mono bg-amber-100/70 px-1 py-0.5 rounded">VITE_GAS_API_URL</code> sudah diisi pada file <code className="font-mono bg-amber-100/70 px-1 py-0.5 rounded">.env</code>.
+                  </p>
+                </div>
+              </div>
+            )}
             
             {/* FITUR 1: RINGKASAN DASHBOARD */}
             {activeTab === 'dashboard' && (
@@ -262,6 +300,7 @@ export default function App() {
               <InputDataView
                 onSave={handleSaveFromInput}
                 onNavigateToTable={() => setActiveTab('table')}
+                existingRecords={records}
               />
             )}
 
@@ -280,6 +319,8 @@ export default function App() {
                   onResetFilters={handleResetFilters}
                   onExportCSV={() => exportToCSV(processedRecords)}
                   totalResults={processedRecords.length}
+                  defectOptions={dynamicDefects}
+                  classOptions={dynamicClasses}
                 />
 
                 <ReworkTable
@@ -314,14 +355,7 @@ export default function App() {
         onSave={handleSaveFromEditModal}
         editData={editData}
         isSubmitting={isSubmitting}
-      />
-
-      {/* MODAL PENGATURAN GOOGLE SHEETS */}
-      <SettingsModal
-        isOpen={isSettingsOpen}
-        onClose={() => setIsSettingsOpen(false)}
-        onUrlUpdated={() => loadData(true)}
-        onResetLocalData={handleResetLocalData}
+        existingRecords={records}
       />
 
       {/* TOAST FEEDBACK NOTIFICATION */}

@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
-import { X, Save } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { X, Save, Sparkles } from 'lucide-react';
 import { ASME_CLASSES, NPS_SIZES, DEFECT_TYPES, PROCESS_LIST, ACTION_LIST } from '../data/constants';
 
-export default function ReworkModal({ isOpen, onClose, onSave, editData, isSubmitting }) {
+export default function ReworkModal({ isOpen, onClose, onSave, editData, isSubmitting, existingRecords = [] }) {
   const [formData, setFormData] = useState({
     date: new Date().toISOString().slice(0, 10),
     nps: '3"',
@@ -15,19 +15,97 @@ export default function ReworkModal({ isOpen, onClose, onSave, editData, isSubmi
     notes: ''
   });
 
+  const [customInputs, setCustomInputs] = useState({
+    nps: '',
+    asmeClass: '',
+    defect: '',
+    process: '',
+    action: ''
+  });
+
+  // Dynamic Options
+  const availableDefects = useMemo(() => {
+    const list = [...DEFECT_TYPES.filter(d => d !== 'Lainnya')];
+    existingRecords.forEach(r => {
+      if (r.defect && r.defect !== '-' && !list.includes(r.defect) && r.defect !== 'Lainnya') {
+        list.push(r.defect);
+      }
+    });
+    return [...list, 'Lainnya'];
+  }, [existingRecords]);
+
+  const availableProcesses = useMemo(() => {
+    const list = [...PROCESS_LIST.filter(p => p !== 'Lainnya')];
+    existingRecords.forEach(r => {
+      if (r.process && r.process !== '-' && !list.includes(r.process) && r.process !== 'Lainnya') {
+        list.push(r.process);
+      }
+    });
+    return [...list, 'Lainnya'];
+  }, [existingRecords]);
+
+  const availableActions = useMemo(() => {
+    const list = [...ACTION_LIST.filter(a => a !== 'Lainnya')];
+    existingRecords.forEach(r => {
+      if (r.action && r.action !== '-' && !list.includes(r.action) && r.action !== 'Lainnya') {
+        list.push(r.action);
+      }
+    });
+    return [...list, 'Lainnya'];
+  }, [existingRecords]);
+
+  const availableClasses = useMemo(() => {
+    const list = [...ASME_CLASSES.filter(c => c.value !== 'Other')];
+    const existingVals = new Set(list.map(c => String(c.value)));
+    existingRecords.forEach(r => {
+      if (r.asmeClass && !existingVals.has(String(r.asmeClass)) && r.asmeClass !== 'Other') {
+        existingVals.add(String(r.asmeClass));
+        list.push({
+          value: String(r.asmeClass),
+          label: `Class ${r.asmeClass}`
+        });
+      }
+    });
+    return [...list, { value: 'Other', label: 'Class Lainnya (Kustom)' }];
+  }, [existingRecords]);
+
+  const availableNps = useMemo(() => {
+    const list = [...NPS_SIZES.filter(s => s !== 'Lainnya')];
+    existingRecords.forEach(r => {
+      if (r.nps && r.nps !== '-' && !list.includes(r.nps) && r.nps !== 'Lainnya') {
+        list.push(r.nps);
+      }
+    });
+    return [...list, 'Lainnya'];
+  }, [existingRecords]);
+
   useEffect(() => {
     if (editData) {
+      const isDefectInList = availableDefects.some(d => d !== 'Lainnya' && d === editData.defect);
+      const isProcessInList = availableProcesses.some(p => p !== 'Lainnya' && p === editData.process);
+      const isActionInList = availableActions.some(a => a !== 'Lainnya' && a === editData.action);
+      const isClassInList = availableClasses.some(c => c.value !== 'Other' && String(c.value) === String(editData.asmeClass));
+      const isNpsInList = availableNps.some(n => n !== 'Lainnya' && n === editData.nps);
+
       setFormData({
         id: editData.id,
         date: editData.date || new Date().toISOString().slice(0, 10),
-        nps: editData.nps || '3"',
-        asmeClass: editData.asmeClass || '150',
+        nps: isNpsInList ? editData.nps : 'Lainnya',
+        asmeClass: isClassInList ? editData.asmeClass : 'Other',
         qtyOrder: editData.qtyOrder || 0,
         qtyReject: editData.qtyReject || 1,
-        defect: editData.defect || DEFECT_TYPES[0],
-        process: editData.process || PROCESS_LIST[0],
-        action: editData.action || ACTION_LIST[0],
+        defect: isDefectInList ? editData.defect : 'Lainnya',
+        process: isProcessInList ? editData.process : 'Lainnya',
+        action: isActionInList ? editData.action : 'Lainnya',
         notes: editData.notes || ''
+      });
+
+      setCustomInputs({
+        nps: isNpsInList ? '' : (editData.nps || ''),
+        asmeClass: isClassInList ? '' : (editData.asmeClass || ''),
+        defect: isDefectInList ? '' : (editData.defect || ''),
+        process: isProcessInList ? '' : (editData.process || ''),
+        action: isActionInList ? '' : (editData.action || '')
       });
     } else {
       setFormData({
@@ -41,6 +119,13 @@ export default function ReworkModal({ isOpen, onClose, onSave, editData, isSubmi
         action: ACTION_LIST[0],
         notes: ''
       });
+      setCustomInputs({
+        nps: '',
+        asmeClass: '',
+        defect: '',
+        process: '',
+        action: ''
+      });
     }
   }, [editData, isOpen]);
 
@@ -52,7 +137,62 @@ export default function ReworkModal({ isOpen, onClose, onSave, editData, isSubmi
       alert('Mohon isi tanggal dan jumlah rework dengan benar.');
       return;
     }
-    onSave(formData);
+
+    let finalDefect = formData.defect;
+    if (formData.defect === 'Lainnya') {
+      if (!customInputs.defect.trim()) {
+        alert('Mohon ketikkan nama Jenis Defect baru pada kolom yang tersedia.');
+        return;
+      }
+      finalDefect = customInputs.defect.trim();
+    }
+
+    let finalProcess = formData.process;
+    if (formData.process === 'Lainnya') {
+      if (!customInputs.process.trim()) {
+        alert('Mohon ketikkan nama Proses Terkait baru pada kolom yang tersedia.');
+        return;
+      }
+      finalProcess = customInputs.process.trim();
+    }
+
+    let finalAction = formData.action;
+    if (formData.action === 'Lainnya') {
+      if (!customInputs.action.trim()) {
+        alert('Mohon ketikkan nama Tindakan Rework baru pada kolom yang tersedia.');
+        return;
+      }
+      finalAction = customInputs.action.trim();
+    }
+
+    let finalClass = formData.asmeClass;
+    if (formData.asmeClass === 'Other') {
+      if (!customInputs.asmeClass.trim()) {
+        alert('Mohon ketikkan nama ASME Class baru pada kolom yang tersedia.');
+        return;
+      }
+      finalClass = customInputs.asmeClass.trim();
+    }
+
+    let finalNps = formData.nps;
+    if (formData.nps === 'Lainnya') {
+      if (!customInputs.nps.trim()) {
+        alert('Mohon ketikkan nama Ukuran NPS baru pada kolom yang tersedia.');
+        return;
+      }
+      finalNps = customInputs.nps.trim();
+    }
+
+    const payload = {
+      ...formData,
+      defect: finalDefect,
+      process: finalProcess,
+      action: finalAction,
+      asmeClass: finalClass,
+      nps: finalNps
+    };
+
+    onSave(payload);
   };
 
   return (
@@ -110,10 +250,24 @@ export default function ReworkModal({ isOpen, onClose, onSave, editData, isSubmi
                 onChange={(e) => setFormData({ ...formData, asmeClass: e.target.value })}
                 className="w-full px-3 py-2 text-xs sm:text-sm bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-slate-900 focus:bg-white cursor-pointer"
               >
-                {ASME_CLASSES.map(c => (
+                {availableClasses.map(c => (
                   <option key={c.value} value={c.value}>{c.label}</option>
                 ))}
               </select>
+
+              {/* Input Kustom jika Class = Other */}
+              {formData.asmeClass === 'Other' && (
+                <div className="mt-1.5 animate-in fade-in duration-150">
+                  <input
+                    type="text"
+                    required
+                    value={customInputs.asmeClass}
+                    onChange={(e) => setCustomInputs({ ...customInputs, asmeClass: e.target.value })}
+                    placeholder="Nama ASME Class baru..."
+                    className="w-full px-3 py-1.5 text-xs bg-amber-50/70 border border-amber-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-amber-500 focus:bg-white transition"
+                  />
+                </div>
+              )}
             </div>
 
             {/* NPS Size */}
@@ -126,10 +280,24 @@ export default function ReworkModal({ isOpen, onClose, onSave, editData, isSubmi
                 onChange={(e) => setFormData({ ...formData, nps: e.target.value })}
                 className="w-full px-3 py-2 text-xs sm:text-sm bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-slate-900 focus:bg-white cursor-pointer"
               >
-                {NPS_SIZES.map(s => (
+                {availableNps.map(s => (
                   <option key={s} value={s}>{s}</option>
                 ))}
               </select>
+
+              {/* Input Kustom jika NPS = Lainnya */}
+              {formData.nps === 'Lainnya' && (
+                <div className="mt-1.5 animate-in fade-in duration-150">
+                  <input
+                    type="text"
+                    required
+                    value={customInputs.nps}
+                    onChange={(e) => setCustomInputs({ ...customInputs, nps: e.target.value })}
+                    placeholder="Ukuran NPS baru..."
+                    className="w-full px-3 py-1.5 text-xs bg-amber-50/70 border border-amber-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-amber-500 focus:bg-white transition"
+                  />
+                </div>
+              )}
             </div>
 
             {/* Qty Rework */}
@@ -144,17 +312,17 @@ export default function ReworkModal({ isOpen, onClose, onSave, editData, isSubmi
                 value={formData.qtyReject}
                 onChange={(e) => setFormData({ ...formData, qtyReject: Math.max(1, parseInt(e.target.value) || 1) })}
                 className="w-full px-3 py-2 text-xs sm:text-sm bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-slate-900 focus:bg-white"
-                placeholder="Jumlah produk rework"
               />
             </div>
 
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+            
             {/* Qty Order */}
             <div>
               <label className="block text-xs font-semibold text-slate-700 mb-1">
-                Qty Total Order (Opsional)
+                Total Qty Order (Opsional)
               </label>
               <input
                 type="number"
@@ -162,28 +330,43 @@ export default function ReworkModal({ isOpen, onClose, onSave, editData, isSubmi
                 value={formData.qtyOrder}
                 onChange={(e) => setFormData({ ...formData, qtyOrder: parseInt(e.target.value) || 0 })}
                 className="w-full px-3 py-2 text-xs sm:text-sm bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-slate-900 focus:bg-white"
-                placeholder="Jumlah pesanan batch"
               />
             </div>
 
             {/* Jenis Defect */}
             <div>
               <label className="block text-xs font-semibold text-slate-700 mb-1">
-                Jenis Defect <span className="text-rose-500">*</span>
+                Identifikasi Masalah (Jenis Defect) <span className="text-rose-500">*</span>
               </label>
               <select
                 value={formData.defect}
                 onChange={(e) => setFormData({ ...formData, defect: e.target.value })}
                 className="w-full px-3 py-2 text-xs sm:text-sm bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-slate-900 focus:bg-white cursor-pointer"
               >
-                {DEFECT_TYPES.map(d => (
+                {availableDefects.map(d => (
                   <option key={d} value={d}>{d}</option>
                 ))}
               </select>
+
+              {/* Input Kustom jika Defect = Lainnya */}
+              {formData.defect === 'Lainnya' && (
+                <div className="mt-1.5 animate-in fade-in duration-150">
+                  <input
+                    type="text"
+                    required
+                    value={customInputs.defect}
+                    onChange={(e) => setCustomInputs({ ...customInputs, defect: e.target.value })}
+                    placeholder="Nama defect baru..."
+                    className="w-full px-3 py-1.5 text-xs bg-amber-50/70 border border-amber-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-amber-500 focus:bg-white transition"
+                  />
+                </div>
+              )}
             </div>
+
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+            
             {/* Proses Terkait */}
             <div>
               <label className="block text-xs font-semibold text-slate-700 mb-1">
@@ -194,10 +377,24 @@ export default function ReworkModal({ isOpen, onClose, onSave, editData, isSubmi
                 onChange={(e) => setFormData({ ...formData, process: e.target.value })}
                 className="w-full px-3 py-2 text-xs sm:text-sm bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-slate-900 focus:bg-white cursor-pointer"
               >
-                {PROCESS_LIST.map(p => (
+                {availableProcesses.map(p => (
                   <option key={p} value={p}>{p}</option>
                 ))}
               </select>
+
+              {/* Input Kustom jika Proses = Lainnya */}
+              {formData.process === 'Lainnya' && (
+                <div className="mt-1.5 animate-in fade-in duration-150">
+                  <input
+                    type="text"
+                    required
+                    value={customInputs.process}
+                    onChange={(e) => setCustomInputs({ ...customInputs, process: e.target.value })}
+                    placeholder="Nama proses baru..."
+                    className="w-full px-3 py-1.5 text-xs bg-amber-50/70 border border-amber-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-amber-500 focus:bg-white transition"
+                  />
+                </div>
+              )}
             </div>
 
             {/* Tindakan Rework */}
@@ -210,51 +407,63 @@ export default function ReworkModal({ isOpen, onClose, onSave, editData, isSubmi
                 onChange={(e) => setFormData({ ...formData, action: e.target.value })}
                 className="w-full px-3 py-2 text-xs sm:text-sm bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-slate-900 focus:bg-white cursor-pointer"
               >
-                {ACTION_LIST.map(a => (
+                {availableActions.map(a => (
                   <option key={a} value={a}>{a}</option>
                 ))}
               </select>
+
+              {/* Input Kustom jika Tindakan = Lainnya */}
+              {formData.action === 'Lainnya' && (
+                <div className="mt-1.5 animate-in fade-in duration-150">
+                  <input
+                    type="text"
+                    required
+                    value={customInputs.action}
+                    onChange={(e) => setCustomInputs({ ...customInputs, action: e.target.value })}
+                    placeholder="Nama tindakan baru..."
+                    className="w-full px-3 py-1.5 text-xs bg-amber-50/70 border border-amber-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-amber-500 focus:bg-white transition"
+                  />
+                </div>
+              )}
             </div>
+
           </div>
 
-          {/* Notes */}
+          {/* Keterangan */}
           <div>
             <label className="block text-xs font-semibold text-slate-700 mb-1">
-              Keterangan Tambahan
+              Keterangan
             </label>
             <textarea
-              rows="2"
+              rows="3"
               value={formData.notes}
               onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-              placeholder="Catatan inspeksi atau informasi lot..."
               className="w-full px-3 py-2 text-xs sm:text-sm bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-slate-900 focus:bg-white"
             />
           </div>
 
-          {/* Form Actions Footer */}
+          {/* Actions */}
           <div className="pt-3 border-t border-slate-100 flex items-center justify-end space-x-2">
             <button
               type="button"
               onClick={onClose}
-              disabled={isSubmitting}
-              className="px-4 py-2 text-xs font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition"
+              className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-medium transition"
             >
               Batal
             </button>
             <button
               type="submit"
               disabled={isSubmitting}
-              className="flex items-center space-x-1.5 px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-medium rounded-lg shadow-xs transition active:scale-95 disabled:opacity-50"
+              className="px-5 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-medium flex items-center space-x-1.5 shadow-xs transition disabled:opacity-50"
             >
-              <Save className="w-3.5 h-3.5" />
-              <span>{isSubmitting ? 'Menyimpan...' : 'Simpan Data'}</span>
+              <Save className="w-4 h-4" />
+              <span>{isSubmitting ? 'Menyimpan...' : 'Simpan Perubahan'}</span>
             </button>
           </div>
 
         </form>
 
       </div>
-
     </div>
   );
 }

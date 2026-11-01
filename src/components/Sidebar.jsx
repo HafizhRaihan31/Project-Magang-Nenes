@@ -9,7 +9,6 @@ import {
   Cloud, 
   CloudOff, 
   RefreshCw, 
-  Settings, 
   X 
 } from 'lucide-react';
 
@@ -22,8 +21,7 @@ export default function Sidebar({
   setIsMobileOpen,
   syncStatus,
   onRefresh,
-  isRefreshing,
-  onOpenSettings
+  isRefreshing
 }) {
   const navItems = [
     { id: 'input', label: 'Input Data', icon: PlusCircle },
@@ -163,15 +161,22 @@ export default function Sidebar({
               
               {!isCollapsed && (
                 <div className="truncate flex-1">
-                  {syncStatus === 'cloud' ? (
+                  {syncStatus === 'cloud' && (
                     <div className="flex items-center space-x-1 text-emerald-700 font-medium text-[11px]">
                       <Cloud className="w-3 h-3 shrink-0" />
                       <span className="truncate">Google Sheets</span>
                     </div>
-                  ) : (
-                    <div className="flex items-center space-x-1 text-slate-500 text-[11px]">
-                      <CloudOff className="w-3 h-3 shrink-0 text-slate-400" />
-                      <span className="truncate">Mode Lokal</span>
+                  )}
+                  {syncStatus === 'unconfigured' && (
+                    <div className="flex items-center space-x-1 text-amber-600 font-medium text-[11px]">
+                      <CloudOff className="w-3 h-3 shrink-0 text-amber-500" />
+                      <span className="truncate">Setup URL Sheets</span>
+                    </div>
+                  )}
+                  {syncStatus === 'error' && (
+                    <div className="flex items-center space-x-1 text-rose-600 font-medium text-[11px]">
+                      <CloudOff className="w-3 h-3 shrink-0 text-rose-500" />
+                      <span className="truncate">Koneksi Error</span>
                     </div>
                   )}
                 </div>
@@ -180,28 +185,7 @@ export default function Sidebar({
 
             {isCollapsed && (
               <div className="hidden md:block absolute left-14 top-1/2 -translate-y-1/2 ml-1 px-2.5 py-1 bg-slate-900 text-white text-[11px] font-medium rounded-md whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity shadow-lg z-50">
-                {syncStatus === 'cloud' ? 'Google Sheets Terhubung' : 'Penyimpanan Lokal'}
-              </div>
-            )}
-          </div>
-
-          {/* Settings Button */}
-          <div className="relative group flex justify-center">
-            <button
-              onClick={onOpenSettings}
-              className={`flex items-center rounded-xl text-xs text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition ${
-                isCollapsed 
-                  ? 'w-11 h-11 justify-center' 
-                  : 'w-full space-x-2.5 px-3 py-2'
-              }`}
-            >
-              <Settings className="w-4 h-4 text-slate-500 shrink-0" />
-              {!isCollapsed && <span>Pengaturan Cloud</span>}
-            </button>
-
-            {isCollapsed && (
-              <div className="hidden md:block absolute left-14 top-1/2 -translate-y-1/2 ml-1 px-2.5 py-1 bg-slate-900 text-white text-[11px] font-medium rounded-md whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity shadow-lg z-50">
-                Pengaturan Cloud
+                {syncStatus === 'cloud' ? 'Google Sheets Terhubung' : syncStatus === 'error' ? 'Koneksi Error' : 'Setup URL Sheets'}
               </div>
             )}
           </div>
